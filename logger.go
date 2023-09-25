@@ -30,7 +30,7 @@ var (
     CurrentSupMinute = ""
     Filter           = ""
     Hook             = func(shard LogShard) {}
-
+    NoCommand = true
     StdOut = os.Stdout
     StdErr = os.Stderr
 
@@ -315,6 +315,9 @@ func Wait() {
 }
 
 func commandListener() {
+    if NoCommand {
+        return
+    }
     scanner := bufio.NewScanner(os.Stdin)
     for scanner.Scan() {
         txt := scanner.Text()
