@@ -54,6 +54,7 @@ type LogShard struct {
 	LogLevel    int           `json:"loglevel"`
 	Color       string        `json:"-"`
 	Destination *os.File      `json:"-"`
+	NoTrace     bool          `json:"-"`
 }
 
 func getFrame(skipFrames int) runtime.Frame {
@@ -82,7 +83,7 @@ func Printer(service string) *LogPrinter {
 		go start()
 		running = !running
 	}
-	return &LogPrinter{service, 0, "", StdOut}
+	return &LogPrinter{service, 0, "", StdOut, false, false}
 }
 
 type LogPrinter struct {
@@ -90,6 +91,8 @@ type LogPrinter struct {
 	level       int
 	logFile     string
 	Destination *os.File
+	Sync        bool
+	NoTrace     bool
 }
 
 func (p *LogPrinter) Sub(service string) *LogPrinter {
@@ -98,6 +101,8 @@ func (p *LogPrinter) Sub(service string) *LogPrinter {
 		p.level + 1,
 		p.logFile,
 		p.Destination,
+		false,
+		false,
 	}
 }
 
@@ -107,16 +112,23 @@ func (p *LogPrinter) Notice(message ...interface{}) {
 	}
 	rawSource := fmt.Sprintf("%v:%v:%v", getFrame(1).File, getFrame(1).Function, getFrame(1).Line)
 	source := strings.Split(rawSource, "/")
-	if !running {
-		return
-	}
-	LogQueue <- LogShard{
+	ls := LogShard{
 		Type:     "Notice",
 		Service:  p.Service,
 		Trace:    source[len(source)-1],
 		Message:  message,
 		LogLevel: TypeNotice,
-		Color:    "\u001b[32;1m"}
+		Color:    "\u001b[32;1m",
+		NoTrace:  p.NoTrace,
+	}
+	if p.Sync {
+		printLog(ls)
+		return
+	}
+	if !running {
+		return
+	}
+	LogQueue <- ls
 }
 
 func (p *LogPrinter) Noticef(f string, message ...interface{}) {
@@ -129,7 +141,7 @@ func (p *LogPrinter) Noticef(f string, message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Notice",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -137,7 +149,13 @@ func (p *LogPrinter) Noticef(f string, message ...interface{}) {
 		LogLevel:    TypeNotice,
 		Color:       "\u001b[32;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Info(message ...interface{}) {
@@ -149,7 +167,7 @@ func (p *LogPrinter) Info(message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Info",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -157,7 +175,13 @@ func (p *LogPrinter) Info(message ...interface{}) {
 		LogLevel:    TypeInfo,
 		Color:       "\u001b[34;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Infof(f string, message ...interface{}) {
@@ -170,7 +194,7 @@ func (p *LogPrinter) Infof(f string, message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Info",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -178,7 +202,13 @@ func (p *LogPrinter) Infof(f string, message ...interface{}) {
 		LogLevel:    TypeInfo,
 		Color:       "\u001b[34;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Error(message ...interface{}) {
@@ -190,7 +220,7 @@ func (p *LogPrinter) Error(message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Error",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -198,7 +228,13 @@ func (p *LogPrinter) Error(message ...interface{}) {
 		LogLevel:    TypeError,
 		Color:       "\u001b[31;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Errorf(f string, message ...interface{}) {
@@ -211,7 +247,7 @@ func (p *LogPrinter) Errorf(f string, message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Error",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -219,7 +255,13 @@ func (p *LogPrinter) Errorf(f string, message ...interface{}) {
 		LogLevel:    TypeError,
 		Color:       "\u001b[31;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Verbose(message ...interface{}) {
@@ -231,7 +273,7 @@ func (p *LogPrinter) Verbose(message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Verbose",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -239,7 +281,13 @@ func (p *LogPrinter) Verbose(message ...interface{}) {
 		LogLevel:    TypeVerbose,
 		Color:       "\u001b[33;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Verbosef(f string, message ...interface{}) {
@@ -252,7 +300,7 @@ func (p *LogPrinter) Verbosef(f string, message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Verbose",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -260,7 +308,13 @@ func (p *LogPrinter) Verbosef(f string, message ...interface{}) {
 		LogLevel:    TypeVerbose,
 		Color:       "\u001b[33;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Debug(message ...interface{}) {
@@ -272,7 +326,7 @@ func (p *LogPrinter) Debug(message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Debug",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -280,7 +334,13 @@ func (p *LogPrinter) Debug(message ...interface{}) {
 		LogLevel:    TypeDebug,
 		Color:       "\u001b[36;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func (p *LogPrinter) Debugf(f string, message ...interface{}) {
@@ -293,7 +353,7 @@ func (p *LogPrinter) Debugf(f string, message ...interface{}) {
 	if !running {
 		return
 	}
-	LogQueue <- LogShard{
+	shard := LogShard{
 		Type:        "Debug",
 		Service:     p.Service,
 		Trace:       source[len(source)-1],
@@ -301,14 +361,24 @@ func (p *LogPrinter) Debugf(f string, message ...interface{}) {
 		LogLevel:    TypeDebug,
 		Color:       "\u001b[36;1m",
 		Destination: p.Destination,
+		NoTrace:     p.NoTrace,
 	}
+	if p.Sync {
+		printLog(shard)
+		return
+	}
+	LogQueue <- shard
 }
 
 func Flush() {
 	isDone := make(chan any)
 	go func() {
+		if len(LogQueue) == 0 {
+			isDone <- 1
+			return
+		}
 		for len(LogQueue) > 0 {
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 5)
 		}
 		isDone <- 1
 	}()
@@ -365,51 +435,58 @@ func commandListener() {
 func start() {
 	go commandListener()
 	for log := range LogQueue {
-		go Hook(log)
-		csm := time.Now().Format("02/01/06 03:04PM")
-		if csm != CurrentSupMinute {
-			CurrentSupMinute = csm
-			//                   BG Yellow     FG Black        FG Yellow    BG Black
-			fmt.Printf("\u001b[43;30m [ %v ] \u001b[33;40m\u001b[0m\n", csm)
-		}
-
-		now := time.Now().Format("05.999")
-		if log.LogLevel <= LogLevel && Enable {
-			//fmt.Println(log)
-			cl := "\u001b[0m" + log.Color
-			re := "\u001b[30;1m"
-			lbr := Clr("[", 2)
-			rbr := Clr("]", 2)
-
-			if Simple {
-				cl = ""
-				re = ""
-				lbr = ""
-				rbr = ""
-			}
-
-			msg := stemp.Compile(
-				`{now:j=l,w=7} {col}[{type}]{lbr}{service}{rbr} {col}`,
-				map[string]interface{}{
-					"now":     fmt.Sprintf("\u001b[33m%v", now),
-					"type":    LevelText[log.LogLevel],
-					"service": log.Service,
-					"col":     cl,
-					"lbr":     lbr,
-					"rbr":     rbr,
-					"reset":   re,
-				})
-			msg += fmt.Sprint(log.Message...)
-			msg += fmt.Sprint(" \u001b[30;1m>", log.Trace, "\u001b[0m\n")
-			if Filter == "" || (Filter != "" && strings.Contains(msg, Filter)) || log.LogLevel == -1 {
-				if Filter != "" {
-					msg = fmt.Sprintf("F:%v|", Filter) + msg
-				}
-				_, _ = fmt.Fprint(StdOut, msg)
-			}
-		}
+		printLog(log)
 	}
 	wait <- 1
+}
+
+func printLog(log LogShard) {
+	go Hook(log)
+	csm := time.Now().Format("02/01/06 03:04PM")
+	if csm != CurrentSupMinute {
+		CurrentSupMinute = csm
+		//                   BG Yellow     FG Black        FG Yellow    BG Black
+		fmt.Printf("\u001b[43;30m [ %v ] \u001b[33;40m\u001b[0m\n", csm)
+	}
+
+	now := time.Now().Format("05.999")
+	if log.LogLevel <= LogLevel && Enable {
+		//fmt.Println(log)
+		cl := "\u001b[0m" + log.Color
+		re := "\u001b[30;1m"
+		lbr := Clr("[", 2)
+		rbr := Clr("]", 2)
+
+		if Simple {
+			cl = ""
+			re = ""
+			lbr = ""
+			rbr = ""
+		}
+
+		msg := stemp.Compile(
+			`{now:j=l,w=7} {col}[{type}]{lbr}{service}{rbr} {col}`,
+			map[string]interface{}{
+				"now":     fmt.Sprintf("\u001b[33m%v", now),
+				"type":    LevelText[log.LogLevel],
+				"service": log.Service,
+				"col":     cl,
+				"lbr":     lbr,
+				"rbr":     rbr,
+				"reset":   re,
+			})
+		msg += fmt.Sprint(log.Message...)
+		if !log.NoTrace {
+			msg += fmt.Sprint(" \u001b[30;1m>", log.Trace)
+		}
+		msg += "\u001b[0m\n"
+		if Filter == "" || (Filter != "" && strings.Contains(msg, Filter)) || log.LogLevel == -1 {
+			if Filter != "" {
+				msg = fmt.Sprintf("F:%v|", Filter) + msg
+			}
+			_, _ = fmt.Fprint(StdOut, msg)
+		}
+	}
 }
 
 func Rainbowize(text string) string {
